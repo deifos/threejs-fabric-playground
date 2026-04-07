@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MacBook Mockup Playground</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --accent: #a8c1dc;
+        --mist: rgba(255, 255, 255, 0.68);
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        overflow: hidden;
+        background: #0c0e14;
+        color: #f6f8fa;
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+      }
+
+      #three-canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      /* Hidden but kept in DOM so the texture pipeline still works */
+      #fabric-canvas {
+        position: absolute;
+        left: -10000px;
+        top: -10000px;
+      }
+
+      /* Vertical lid slider on right edge */
+      .lid-control {
+        position: fixed;
+        right: 28px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 18px 14px;
+        background: rgba(19, 23, 28, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 22px;
+        backdrop-filter: blur(12px);
+        z-index: 10;
+        user-select: none;
+      }
+
+      .lid-control .label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .lid-control .value {
+        font-size: 12px;
+        color: var(--mist);
+        font-variant-numeric: tabular-nums;
+        min-width: 38px;
+        text-align: center;
+      }
+
+      #lid-slider {
+        writing-mode: vertical-lr;
+        direction: rtl;
+        -webkit-appearance: slider-vertical;
+        appearance: slider-vertical;
+        width: 22px;
+        height: 240px;
+        accent-color: var(--accent);
+        cursor: ns-resize;
+      }
+
+      /* Color swatch picker (bottom center) */
+      .color-picker {
+        position: fixed;
+        left: 50%;
+        bottom: 28px;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 22px;
+        background: rgba(19, 23, 28, 0.55);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        backdrop-filter: blur(12px);
+        z-index: 10;
+      }
+
+      .color-picker .label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .swatch {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        border: 2px solid rgba(255, 255, 255, 0.18);
+        cursor: pointer;
+        transition: transform 0.15s ease, border-color 0.15s ease;
+        padding: 0;
+      }
+
+      .swatch:hover {
+        transform: scale(1.1);
+      }
+
+      .swatch.active {
+        border-color: #ffffff;
+        transform: scale(1.15);
+        box-shadow: 0 0 0 3px rgba(168, 193, 220, 0.3);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="three-canvas"></canvas>
+    <canvas id="fabric-canvas" width="1600" height="1000"></canvas>
+
+    <div class="lid-control">
+      <span class="label">Open</span>
+      <input
+        type="range"
+        id="lid-slider"
+        min="0"
+        max="170"
+        value="106"
+        orient="vertical"
+      />
+      <span class="label">Close</span>
+      <span class="value" id="lid-angle">106°</span>
+    </div>
+
+    <div class="color-picker">
+      <span class="label">Color</span>
+      <button class="swatch" data-color="gray"  style="background:#676e89" title="Gray"></button>
+      <button class="swatch" data-color="white" style="background:#e6e7e9" title="White"></button>
+      <button class="swatch" data-color="pink"  style="background:#e6d5d4" title="Pink"></button>
+      <button class="swatch" data-color="green" style="background:#dbdf8c" title="Green"></button>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
