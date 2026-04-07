@@ -198,7 +198,11 @@ function rrShape(w, h, r) {
 // ── Dimensions (in scene units) ──────────────────────────────────────
 const W = 3.58;           // laptop width
 const ASPECT = 16 / 10;
-const LID_H = 2.42;       // lid panel height
+const BASE_W = W;
+const BASE_D = 2.32;       // depth front-to-back
+// Hinge sits 0.04 forward of the back edge, so the lid panel must equal
+// (BASE_D - 0.04) for the closed lid front edge to land flush with the base.
+const LID_H = BASE_D - 0.04; // = 2.28
 const LID_D = 0.038;      // lid thickness
 const LID_R = 0.10;       // corner radius
 
@@ -208,9 +212,6 @@ const BEZEL_B = 0.10;     // chin (slightly thicker)
 
 const SCR_W = W - BEZEL_S * 2;
 const SCR_H = LID_H - BEZEL_T - BEZEL_B;
-
-const BASE_W = W;
-const BASE_D = 2.32;       // depth front-to-back
 const BASE_THICKNESS = 0.13; // total height (very slim, MacBook Air-thin)
 const BASE_BEVEL = 0.012;
 const BASE_DEPTH = BASE_THICKNESS - 2 * BASE_BEVEL; // extruded body depth
@@ -497,9 +498,9 @@ liftShape.moveTo(-liftW, 0);
 liftShape.absellipse(0, 0, liftW, liftH, Math.PI, 2 * Math.PI, false, 0);
 liftShape.lineTo(-liftW, 0);
 
-const liftMat = new THREE.MeshBasicMaterial({ color: 0x05080d });
+// Use the same material as the body so it follows the swatch color
 const liftGeo = new THREE.ShapeGeometry(liftShape);
-const liftMesh = new THREE.Mesh(liftGeo, liftMat);
+const liftMesh = new THREE.Mesh(liftGeo, aluminum);
 // Place on the front face, scallop opening upward at the top of the slab
 liftMesh.position.set(
   0,
@@ -513,7 +514,7 @@ laptop.add(liftMesh);
 const topDeck = new THREE.Group();
 
 // Keyboard plate (anodized to match the body)
-const kbW = BASE_W * 0.80;
+const kbW = BASE_W * 0.85;
 const kbD = BASE_D * 0.46;
 const kbCenterZ = -BASE_D * 0.16; // forward enough to leave a margin from the hinge
 
@@ -531,8 +532,9 @@ topDeck.add(plateMesh);
 // ── Realistic key layout with labels ────────────────────────────────
 // Each row: { h: heightUnits, keys: [{w: widthUnits, l: label}...] }
 const k = (w, l) => ({ w, l });
+const g = (w) => ({ w, gap: true });
 const layout = [
-  { h: 0.6, keys: [
+  { h: 0.85, keys: [
     k(1,"esc"), k(1,"F1"), k(1,"F2"), k(1,"F3"), k(1,"F4"), k(1,"F5"), k(1,"F6"),
     k(1,"F7"), k(1,"F8"), k(1,"F9"), k(1,"F10"), k(1,"F11"), k(1,"F12"), k(1,"")
   ]},
@@ -555,6 +557,33 @@ const layout = [
   { h: 1.0, keys: [
     k(1,"fn"), k(1,"⌃"), k(1,"⌥"), k(1.25,"⌘"), k(5,""), k(1.25,"⌘"), k(1,"⌥"),
     k(1,"←"), { w: 1, l: "↑↓", stacked: true }, k(1,"→")
+  ]},
+];
+
+const keyboardLayout = [
+  { h: 0.6, keys: [
+    k(1, "esc"), k(1, "F1"), k(1, "F2"), k(1, "F3"), k(1, "F4"), k(1, "F5"), k(1, "F6"),
+    k(1, "F7"), k(1, "F8"), k(1, "F9"), k(1, "F10"), k(1, "F11"), k(1, "F12"), k(1, "")
+  ]},
+  { h: 1.0, keys: [
+    k(1, "`"), k(1, "1"), k(1, "2"), k(1, "3"), k(1, "4"), k(1, "5"), k(1, "6"),
+    k(1, "7"), k(1, "8"), k(1, "9"), k(1, "0"), k(1, "-"), k(1, "="), k(1, "\u232b")
+  ]},
+  { h: 1.0, keys: [
+    k(1.5, "\u21e5"), k(1, "Q"), k(1, "W"), k(1, "E"), k(1, "R"), k(1, "T"), k(1, "Y"),
+    k(1, "U"), k(1, "I"), k(1, "O"), k(1, "P"), k(1, "["), k(1, "]"), k(1.0, "\\")
+  ]},
+  { h: 1.0, keys: [
+    k(1.75, "\u21ea"), k(1, "A"), k(1, "S"), k(1, "D"), k(1, "F"), k(1, "G"), k(1, "H"),
+    k(1, "J"), k(1, "K"), k(1, "L"), k(1, ";"), k(1, "'"), k(1.75, "return")
+  ]},
+  { h: 1.0, keys: [
+    k(2.25, "\u21e7"), k(1, "Z"), k(1, "X"), k(1, "C"), k(1, "V"), k(1, "B"),
+    k(1, "N"), k(1, "M"), k(1, ","), k(1, "."), k(1, "/"), k(2.25, "\u21e7")
+  ]},
+  { h: 1.0, keys: [
+    k(1, "fn"), k(1, "\u2303"), k(1, "\u2325"), k(1.25, "\u2318"), k(4.75, ""), k(1.25, "\u2318"), k(1, "\u2325"),
+    g(0.7), k(0.9, "\u2190"), { w: 0.9, l: "\u2191\u2193", stacked: true }, k(0.9, "\u2192")
   ]},
 ];
 
@@ -595,12 +624,12 @@ const keyCapMat = new THREE.MeshStandardMaterial({
 // Track all label meshes so we can refresh their textures when the body color changes
 const labelMeshes = [];
 
-const innerKbW = kbW - 0.04;
-const innerKbD = kbD - 0.04;
-const rowGap = 0.008;
-const colGap = 0.010;
-const totalRowH = layout.reduce((s, r) => s + r.h, 0);
-const verticalGapTotal = (layout.length - 1) * rowGap;
+const innerKbW = kbW - 0.06;
+const innerKbD = kbD - 0.06;
+const rowGap = 0.018;
+const colGap = 0.018;
+const totalRowH = keyboardLayout.reduce((s, r) => s + r.h, 0);
+const verticalGapTotal = (keyboardLayout.length - 1) * rowGap;
 const unitH = (innerKbD - verticalGapTotal) / totalRowH;
 const keyHeight = 0.018; // 3D pop-out height
 
@@ -609,7 +638,7 @@ const keyboardGroup = new THREE.Group();
 // Lay rows from back (function row) to front (bottom row)
 // In local space: -Z = back of laptop (top of keyboard); +Z = front (space bar)
 let cursorZ = -innerKbD / 2;
-layout.forEach((row, rowIdx) => {
+keyboardLayout.forEach((row, rowIdx) => {
   const rowH = row.h * unitH;
   const rowUnits = row.keys.reduce((s, key) => s + key.w, 0);
   const horizGapTotal = (row.keys.length - 1) * colGap;
@@ -621,8 +650,14 @@ layout.forEach((row, rowIdx) => {
     const widthUnits = entry.w;
     const label = entry.l;
     const stacked = entry.stacked === true;
+    const gap = entry.gap === true;
     const kw = widthUnits * unitW;
     const kh = rowH;
+
+    if (gap) {
+      cursorX += kw + colGap;
+      return;
+    }
 
     if (stacked) {
       // Two half-height keys (up over down) in the same column slot
