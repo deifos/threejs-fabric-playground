@@ -104,12 +104,12 @@ function rrShape(w, h, r) {
 // ── iPhone dimensions ────────────────────────────────────────────────
 const PHONE_W = 1.55;
 const PHONE_H = 3.20;
-const PHONE_D = 0.17;
-const PHONE_R = 0.30; // corner radius (silhouette)
+const PHONE_D = 0.11;     // thin slab
+const PHONE_R = 0.30;     // corner radius (silhouette)
 
-// Moderate bevel for a rounded silhouette without making the front face tiny
-const BEVEL_T = 0.04;
-const BEVEL_S = 0.03;
+// Moderate bevel — keep some side rail visible while rounding the edges
+const BEVEL_T = 0.025;
+const BEVEL_S = 0.025;
 const EXTRUDE_D = PHONE_D - 2 * BEVEL_T;
 
 const FRONT_W = PHONE_W - 2 * BEVEL_S;
@@ -356,40 +356,56 @@ mic.rotation.y = Math.PI;
 mic.position.set(FLASH_X, PLATEAU_Y - 0.06, PLATEAU_BACK_Z - 0.001);
 phone.add(mic);
 
-// ── Side buttons (vertical pills running along Y) ───────────────────
-// Each button is a thin BoxGeometry: extruded out (X), tall (Y), thin (Z).
-// They poke out clearly from the side wall.
-function makeButton(length, thickness = 0.045) {
-  // X = how far it sticks out, Y = vertical length, Z = front-back thickness
-  const geo = new THREE.BoxGeometry(0.04, length, thickness);
+// ── Side buttons (vertical pills clearly poking out from the rail) ──
+function makeButton(length) {
+  // Small extruded rounded rect that pokes out from the side rail.
+  const buttonZ = 0.045; // front/back thickness
+  const buttonW = 0.04;  // how far it pokes out from the side
+  const shape = rrShape(length, buttonZ, buttonZ * 0.5);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: buttonW,
+    bevelEnabled: true,
+    bevelThickness: 0.005,
+    bevelSize: 0.005,
+    bevelSegments: 4,
+    curveSegments: 12,
+  });
+  // Shape was in XY plane, extruded along +Z. Reorient so the long axis is Y
+  // and the extrusion direction becomes ±X.
+  geo.rotateZ(Math.PI / 2);
+  geo.rotateY(Math.PI / 2);
+  // Center the extrusion symmetrically around X=0 so position.x sits on the
+  // silhouette (half inside the body, half outside).
+  geo.translate(-buttonW / 2, 0, 0);
   const m = new THREE.Mesh(geo, buttonMat);
   m.castShadow = true;
   return m;
 }
 
-// LEFT side: action button (top), volume up, volume down
-// Center the button on the silhouette so half is visible outside
-const leftX = -PHONE_W / 2;
+// Push the buttons fully outside the silhouette so they're clearly visible
+// from the front view. With buttonW/2 = 0.02 the inner edge just kisses the
+// side wall (rather than being half-buried inside the body).
+const BUTTON_OFFSET = 0.017;
 
-// Action / mute button (small)
+// LEFT side: action button (top), volume up, volume down
+const leftEdge = -PHONE_W / 2 - BUTTON_OFFSET;
+
 const actionBtn = makeButton(0.12);
-actionBtn.position.set(leftX, PHONE_H / 2 - 0.62, 0);
+actionBtn.position.set(leftEdge, PHONE_H / 2 - 0.62, 0);
 phone.add(actionBtn);
 
-// Volume up
 const volUp = makeButton(0.22);
-volUp.position.set(leftX, PHONE_H / 2 - 0.95, 0);
+volUp.position.set(leftEdge, PHONE_H / 2 - 0.95, 0);
 phone.add(volUp);
 
-// Volume down
 const volDown = makeButton(0.22);
-volDown.position.set(leftX, PHONE_H / 2 - 1.25, 0);
+volDown.position.set(leftEdge, PHONE_H / 2 - 1.25, 0);
 phone.add(volDown);
 
 // RIGHT side: power button
-const rightX = PHONE_W / 2;
+const rightEdge = PHONE_W / 2 + BUTTON_OFFSET;
 const powerBtn = makeButton(0.32);
-powerBtn.position.set(rightX, PHONE_H / 2 - 0.85, 0);
+powerBtn.position.set(rightEdge, PHONE_H / 2 - 0.85, 0);
 phone.add(powerBtn);
 
 // ── USB-C port at the bottom ─────────────────────────────────────────
