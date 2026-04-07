@@ -271,9 +271,9 @@ const keyMat = new THREE.MeshStandardMaterial({
 });
 
 const trackpadMat = new THREE.MeshStandardMaterial({
-  color: 0x28303b,
-  metalness: 0.6,
-  roughness: 0.22,
+  color: 0x676e89, // overridden by setLaptopColor
+  metalness: 0.35,
+  roughness: 0.4,
 });
 
 const hingeMat = new THREE.MeshStandardMaterial({
@@ -488,19 +488,39 @@ const grilleMeshL = grilleMesh.clone();
 grilleMeshL.position.x = -grilleMesh.position.x;
 laptop.add(grilleMeshL);
 
+// ── Curved "lift to open" notch on the top-front edge ───────────────
+// Half-ellipse shape giving a wide, shallow scallop look.
+const liftShape = new THREE.Shape();
+const liftW = 0.18;  // half-width of the scallop
+const liftH = 0.035; // depth (how far down the curve goes)
+liftShape.moveTo(-liftW, 0);
+liftShape.absellipse(0, 0, liftW, liftH, Math.PI, 2 * Math.PI, false, 0);
+liftShape.lineTo(-liftW, 0);
+
+const liftMat = new THREE.MeshBasicMaterial({ color: 0x05080d });
+const liftGeo = new THREE.ShapeGeometry(liftShape);
+const liftMesh = new THREE.Mesh(liftGeo, liftMat);
+// Place on the front face, scallop opening upward at the top of the slab
+liftMesh.position.set(
+  0,
+  BASE_THICKNESS - 0.001,
+  BASE_D / 2 + BASE_BEVEL + 0.001
+);
+laptop.add(liftMesh);
+
 // ── Top deck: keyboard + trackpad ────────────────────────────────────
 // Sits flat on top of the uniform-thickness slab.
 const topDeck = new THREE.Group();
 
-// Keyboard plate (recessed dark well)
-const kbW = BASE_W * 0.88;
-const kbD = BASE_D * 0.45;
+// Keyboard plate (anodized to match the body)
+const kbW = BASE_W * 0.80;
+const kbD = BASE_D * 0.46;
 const kbCenterZ = -BASE_D * 0.16; // forward enough to leave a margin from the hinge
 
 const plateMat = new THREE.MeshStandardMaterial({
-  color: 0x10141b,
-  metalness: 0.15,
-  roughness: 0.85,
+  color: 0x676e89, // overridden by setLaptopColor
+  metalness: 0.3,
+  roughness: 0.55,
 });
 const plateGeo = new THREE.ShapeGeometry(rrShape(kbW, kbD, 0.05));
 plateGeo.rotateX(-Math.PI / 2);
@@ -539,7 +559,9 @@ const layout = [
 ];
 
 // ── Label texture cache ──────────────────────────────────────────────
+let labelTextColor = "#3a4050"; // updated when body color changes
 const labelCache = new Map();
+
 function getLabelTexture(text, fontPx = 64) {
   const cacheKey = `${text}|${fontPx}`;
   if (labelCache.has(cacheKey)) return labelCache.get(cacheKey);
@@ -551,7 +573,7 @@ function getLabelTexture(text, fontPx = 64) {
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, size, size);
   ctx.font = `500 ${fontPx}px -apple-system, system-ui, "Segoe UI", sans-serif`;
-  ctx.fillStyle = "#a8b0bc";
+  ctx.fillStyle = labelTextColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(text, size / 2, size / 2 + 2);
@@ -563,11 +585,15 @@ function getLabelTexture(text, fontPx = 64) {
   return tex;
 }
 
+// Anodized key cap colour: starts as a slightly lighter shade of the body
 const keyCapMat = new THREE.MeshStandardMaterial({
-  color: 0x252c38,
-  metalness: 0.2,
-  roughness: 0.55,
+  color: 0x7a8197,
+  metalness: 0.25,
+  roughness: 0.5,
 });
+
+// Track all label meshes so we can refresh their textures when the body color changes
+const labelMeshes = [];
 
 const innerKbW = kbW - 0.04;
 const innerKbD = kbD - 0.04;
@@ -632,7 +658,9 @@ layout.forEach((row, rowIdx) => {
       const labelMesh = new THREE.Mesh(labelGeo, labelMat);
       labelMesh.rotation.x = -Math.PI / 2;
       labelMesh.position.set(cx, keyHeight + 0.005, cz);
+      labelMesh.userData = { label, fontPx };
       keyboardGroup.add(labelMesh);
+      labelMeshes.push(labelMesh);
     }
 
     cursorX += kw + colGap;
@@ -645,8 +673,8 @@ keyboardGroup.position.set(0, 0, kbCenterZ);
 topDeck.add(keyboardGroup);
 
 // ── Trackpad (large, like real MacBook Air) ─────────────────────────
-const tpW = BASE_W * 0.48;
-const tpD = BASE_D * 0.36;
+const tpW = BASE_W * 0.50;
+const tpD = BASE_D * 0.38;
 const trackpadGeo = new THREE.ShapeGeometry(rrShape(tpW, tpD, 0.06));
 trackpadGeo.rotateX(-Math.PI / 2);
 const trackpadMesh = new THREE.Mesh(trackpadGeo, trackpadMat);
@@ -665,17 +693,17 @@ hingeMesh.rotation.z = Math.PI / 2;
 hingeMesh.position.set(0, BASE_THICKNESS + HINGE_R * 0.3, -BASE_D / 2 + 0.04);
 laptop.add(hingeMesh);
 
-// ── Rubber feet (larger so they show as bumps from front/side) ───────
+// ── Body-color feet (small protrusions, not rubber) ─────────────────
 const FOOT_R = 0.055;
-const FOOT_H = 0.022;
-const footGeo = new THREE.CylinderGeometry(FOOT_R, FOOT_R, FOOT_H, 18);
+const FOOT_H = 0.018;
+const footGeo = new THREE.CylinderGeometry(FOOT_R, FOOT_R * 0.85, FOOT_H, 24);
 [
   [-BASE_W / 2 + 0.20, -BASE_D / 2 + 0.18],
   [ BASE_W / 2 - 0.20, -BASE_D / 2 + 0.18],
   [-BASE_W / 2 + 0.20,  BASE_D / 2 - 0.18],
   [ BASE_W / 2 - 0.20,  BASE_D / 2 - 0.18],
 ].forEach(([fx, fz]) => {
-  const foot = new THREE.Mesh(footGeo, rubberMat);
+  const foot = new THREE.Mesh(footGeo, aluminum);
   foot.position.set(fx, -FOOT_H / 2, fz);
   laptop.add(foot);
 });
@@ -767,11 +795,52 @@ const macColors = {
   green: { body: 0xdbdf8c, back: 0xc4c876 },
 };
 
+// Mix two hex colors (returns hex int).
+function mixHex(a, b, t) {
+  const ar = (a >> 16) & 0xff, ag = (a >> 8) & 0xff, ab = a & 0xff;
+  const br = (b >> 16) & 0xff, bg = (b >> 8) & 0xff, bb = b & 0xff;
+  const r = Math.round(ar * (1 - t) + br * t);
+  const g = Math.round(ag * (1 - t) + bg * t);
+  const bC = Math.round(ab * (1 - t) + bb * t);
+  return (r << 16) | (g << 8) | bC;
+}
+
+// Pick a label color that contrasts with the body.
+function labelColorFor(bodyHex) {
+  const r = (bodyHex >> 16) & 0xff;
+  const g = (bodyHex >> 8) & 0xff;
+  const b = bodyHex & 0xff;
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.55 ? "#3a4050" : "#cdd2dd";
+}
+
+function refreshLabelTextures() {
+  // Dispose old textures and rebuild
+  labelCache.forEach((tex) => tex.dispose());
+  labelCache.clear();
+  labelMeshes.forEach((mesh) => {
+    const { label, fontPx } = mesh.userData;
+    const newTex = getLabelTexture(label, fontPx);
+    mesh.material.map = newTex;
+    mesh.material.needsUpdate = true;
+  });
+}
+
 function setLaptopColor(name) {
   const palette = macColors[name];
   if (!palette) return;
+  // Body / lid
   aluminum.color.setHex(palette.body);
   aluminumDark.color.setHex(palette.back);
+  // Top deck (anodized to match the body)
+  plateMat.color.setHex(palette.body);
+  trackpadMat.color.setHex(palette.body);
+  // Keys: subtly lighter than the body so they stand out a touch
+  const keyHex = mixHex(palette.body, 0xffffff, 0.18);
+  keyCapMat.color.setHex(keyHex);
+  // Labels: contrast-aware
+  labelTextColor = labelColorFor(palette.body);
+  refreshLabelTextures();
 }
 
 document.querySelectorAll(".swatch").forEach((swatch) => {
