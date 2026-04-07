@@ -1,6 +1,10 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { Canvas as FabricCanvas, Rect, Textbox, Gradient } from "fabric";
 
 // ── Renderer ─────────────────────────────────────────────────────────
@@ -10,7 +14,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 0.85;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -33,9 +37,12 @@ controls.minDistance = 3;
 controls.maxDistance = 18;
 
 // ── Lighting ─────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0x8090a8, 0.5));
+// A soft ambient base + a key directional light that casts the contact shadow.
+// The bulk of the realism now comes from the env map, not from individual
+// directional lights (which tend to look "stagy").
+scene.add(new THREE.AmbientLight(0xffffff, 0.15));
 
-const key = new THREE.DirectionalLight(0xffffff, 1.8);
+const key = new THREE.DirectionalLight(0xffffff, 1.4);
 key.position.set(4, 10, 6);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
@@ -46,40 +53,21 @@ key.shadow.camera.right = 6;
 key.shadow.camera.top = 6;
 key.shadow.camera.bottom = -6;
 key.shadow.bias = -0.0004;
+key.shadow.radius = 6; // softer penumbra
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(0x8eaacc, 0.5);
-fill.position.set(-5, 4, -3);
-scene.add(fill);
-
-const rim = new THREE.DirectionalLight(0xffffff, 0.7);
-rim.position.set(0, 3, -8);
+// Wraparound rim from behind for a sculpted edge highlight
+const rim = new THREE.DirectionalLight(0xc7d6ee, 0.4);
+rim.position.set(-3, 4, -7);
 scene.add(rim);
 
-// Soft top light for lid back
-const top = new THREE.DirectionalLight(0xc0d0e0, 0.4);
-top.position.set(0, 12, 0);
-scene.add(top);
-
-// ── Environment for reflections ──────────────────────────────────────
+// ── Environment map (RoomEnvironment) ───────────────────────────────
+// RoomEnvironment is the same procedural indoor scene three.js uses in its
+// MaterialX/PBR examples. It gives us proper PBR lighting without an HDRI.
 const pmrem = new THREE.PMREMGenerator(renderer);
-const envScene = new THREE.Scene();
-envScene.background = new THREE.Color(0x181c24);
-[
-  { color: 0x2a3040, pos: [0, 8, -4], rot: [0.4, 0, 0] },
-  { color: 0x1e2430, pos: [6, 4, 0], rot: [0, -1.3, 0] },
-  { color: 0x1a2030, pos: [-6, 4, 0], rot: [0, 1.3, 0] },
-  { color: 0x222838, pos: [0, -2, 4], rot: [-0.6, 0, 0] },
-].forEach(({ color, pos, rot }) => {
-  const m = new THREE.Mesh(
-    new THREE.PlaneGeometry(20, 20),
-    new THREE.MeshBasicMaterial({ color })
-  );
-  m.position.set(...pos);
-  m.rotation.set(...rot);
-  envScene.add(m);
-});
-scene.environment = pmrem.fromScene(envScene, 0.04).texture;
+pmrem.compileEquirectangularShader();
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.45;
 pmrem.dispose();
 
 // ── Ground ───────────────────────────────────────────────────────────
@@ -221,17 +209,27 @@ const HINGE_R = 0.042;
 const OPEN_ANGLE = 1.85; // ~106° (lid tilted back slightly)
 
 // ── Materials ────────────────────────────────────────────────────────
+// MeshPhysicalMaterial gives us clearcoat — a thin glossy layer over the
+// anodized aluminum that catches highlights the way real MacBooks do.
 const aluminumColor = new THREE.Color(0x676e89);
-const aluminum = new THREE.MeshStandardMaterial({
+const aluminum = new THREE.MeshPhysicalMaterial({
   color: aluminumColor,
-  metalness: 0.35,
-  roughness: 0.45,
+  metalness: 0.55,
+  roughness: 0.42,
+  clearcoat: 0.45,
+  clearcoatRoughness: 0.18,
+  reflectivity: 0.4,
+  envMapIntensity: 1.0,
 });
 
-const aluminumDark = new THREE.MeshStandardMaterial({
+const aluminumDark = new THREE.MeshPhysicalMaterial({
   color: 0x565d75,
-  metalness: 0.35,
-  roughness: 0.5,
+  metalness: 0.55,
+  roughness: 0.45,
+  clearcoat: 0.45,
+  clearcoatRoughness: 0.20,
+  reflectivity: 0.4,
+  envMapIntensity: 1.0,
 });
 
 const bezelMat = new THREE.MeshStandardMaterial({
@@ -240,8 +238,10 @@ const bezelMat = new THREE.MeshStandardMaterial({
   roughness: 0.55,
 });
 
+// Screen material — dimmed slightly so the bright pixels of the screenshot
+// don't blow out next to light body colors.
 const screenMat = new THREE.MeshBasicMaterial({
-  color: 0xffffff,
+  color: 0xc8c8c8,
   side: THREE.FrontSide,
   toneMapped: false,
 });
@@ -792,6 +792,21 @@ const footGeo = new THREE.CylinderGeometry(FOOT_R, FOOT_R * 0.85, FOOT_H, 24);
 laptop.position.set(0, FOOT_H, 0);
 scene.add(laptop);
 
+// ── Post-processing (MSAA only) ─────────────────────────────────────
+// EffectComposer bypasses the renderer's built-in MSAA, so we create a
+// multi-sampled render target to keep edges smooth.
+const composerTarget = new THREE.WebGLRenderTarget(
+  window.innerWidth, window.innerHeight,
+  {
+    type: THREE.HalfFloatType,
+    samples: 4, // 4x MSAA
+  }
+);
+const composer = new EffectComposer(renderer, composerTarget);
+composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new OutputPass());
+
 // ── Soft shadow blob ─────────────────────────────────────────────────
 const blobCanvas = document.createElement("canvas");
 blobCanvas.width = 512;
@@ -971,7 +986,7 @@ function animate() {
   }
 
   controls.update();
-  renderer.render(scene, camera);
+  composer.render();
 }
 animate();
 
@@ -980,4 +995,5 @@ window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
