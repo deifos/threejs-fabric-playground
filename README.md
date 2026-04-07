@@ -23,6 +23,9 @@ clean, interactive 3D mockup of it.
 - **Interactive controls** — `OrbitControls` for rotating the device, a
   vertical slider for opening/closing the laptop lid, and a swatch picker for
   switching between four anodized colors per device.
+- **Depth of field overlay** — a non-destructive CSS `backdrop-filter` DoF
+  effect with **Radial** and **Linear** modes, blur + focus + angle sliders,
+  shared between both mockups.
 - **MSAA via post-processing** — an `EffectComposer` pipeline with a
   multi-sampled render target keeps edges smooth without losing the option to
   add more passes (bloom, SSAO, FXAA…) later.
@@ -58,7 +61,8 @@ npm run preview
 │   └── iphone-screen.png   # Default iPhone screen image
 ├── src/
 │   ├── main.js             # Laptop scene + Fabric integration
-│   └── iphone.js           # iPhone scene
+│   ├── iphone.js           # iPhone scene
+│   └── dof.js              # Shared depth-of-field panel logic
 └── vite.config.js          # Multi-page Vite config
 ```
 
@@ -113,6 +117,33 @@ power), USB-C port, speaker grille, and four colors.
 
 The iPhone screen loads `iphone-screen.png` by default. You can swap it via
 the global `window.mockup` API.
+
+## Depth of field
+
+Both pages include a shared depth-of-field panel (top-right) that applies a
+CSS `backdrop-filter` blur behind a gradient mask. It's a 2D effect — no
+extra 3D passes — so it's free and works on top of anything in the scene.
+
+Modes:
+
+- **Off** — no blur
+- **Radial** — elliptical sharp zone centered on the focus point, blurred
+  edges. Simulates a macro lens or a tilt-shift center-focus look.
+- **Linear** — a horizontal (or rotated) sharp band, blurred above and
+  below. Simulates a camera focusing on a tilted focal plane.
+
+Sliders:
+
+- **Blur** — blur radius in pixels (0–20)
+- **Focus** — where the sharp area sits along the gradient axis (0–100%)
+- **Angle** — rotation of the sharp band (Linear mode only, 0–360°).
+  `0° / 180°` = horizontal band, `90° / 270°` = vertical band, `45°` =
+  diagonal.
+
+The effect is implemented in `src/dof.js` and shared between both pages.
+The module auto-initializes when it finds a `.dof-panel` in the DOM and
+injects a full-page `.dof-overlay` element that actually performs the
+blur.
 
 ## Replacing the screen images
 

@@ -163,6 +163,102 @@
         background: var(--accent);
         color: #0c0e14;
       }
+
+      /* Depth-of-field side panel */
+      .dof-panel {
+        position: fixed;
+        top: 32px;
+        right: 32px;
+        width: 260px;
+        padding: 18px;
+        background: rgba(19, 23, 28, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        backdrop-filter: blur(12px);
+        z-index: 10;
+        user-select: none;
+        box-sizing: border-box;
+      }
+
+      .dof-panel .title {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .dof-tabs {
+        display: flex;
+        gap: 2px;
+        padding: 2px;
+        background: rgba(0, 0, 0, 0.3);
+        border-radius: 10px;
+        margin-bottom: 14px;
+      }
+
+      .dof-tab {
+        flex: 1;
+        padding: 8px 0;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--mist);
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+
+      .dof-tab:hover { color: #ffffff; }
+
+      .dof-tab.active {
+        background: var(--accent);
+        color: #0c0e14;
+      }
+
+      .dof-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 10px;
+        font-size: 11px;
+        color: var(--mist);
+      }
+
+      .dof-row label {
+        flex-shrink: 0;
+        width: 42px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
+      .dof-row input[type="range"] {
+        flex: 1 1 0;
+        min-width: 0;       /* let it shrink below its default min */
+        accent-color: var(--accent);
+      }
+
+      .dof-row .value {
+        flex-shrink: 0;     /* never let the value be pushed out */
+        font-size: 10px;
+        min-width: 36px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* The actual blur overlay, appended by src/dof.js. Covers the entire
+         page so the blur applies to the 3D canvas AND any other UI. */
+      .dof-overlay {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        z-index: 8; /* below the panels but above the canvas */
+      }
     </style>
   </head>
   <body>
@@ -196,6 +292,31 @@
       <button class="swatch" data-color="green" style="background:#dbdf8c" title="Green"></button>
     </div>
 
+    <aside class="dof-panel">
+      <span class="title">Depth of Field</span>
+      <div class="dof-tabs">
+        <button class="dof-tab active" data-mode="none">Off</button>
+        <button class="dof-tab" data-mode="radial">Radial</button>
+        <button class="dof-tab" data-mode="directional">Linear</button>
+      </div>
+      <div class="dof-row">
+        <label for="dof-amount">Blur</label>
+        <input type="range" id="dof-amount" min="0" max="20" value="6" />
+        <span class="value" id="dof-amount-label">6px</span>
+      </div>
+      <div class="dof-row">
+        <label for="dof-position">Focus</label>
+        <input type="range" id="dof-position" min="0" max="100" value="50" />
+        <span class="value" id="dof-position-label">50%</span>
+      </div>
+      <div class="dof-row" data-row="angle" style="display:none">
+        <label for="dof-angle">Angle</label>
+        <input type="range" id="dof-angle" min="0" max="360" value="180" />
+        <span class="value" id="dof-angle-label">180°</span>
+      </div>
+    </aside>
+
     <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/dof.js"></script>
   </body>
 </html>

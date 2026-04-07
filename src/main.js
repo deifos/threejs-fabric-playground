@@ -237,10 +237,10 @@ const bezelMat = new THREE.MeshStandardMaterial({
   roughness: 0.55,
 });
 
-// Screen material — dimmed slightly so the bright pixels of the screenshot
-// don't blow out next to light body colors.
+// Screen material — slightly dimmed so the bright pixels of the screenshot
+// don't blow out next to light body colors, but still clearly "on".
 const screenMat = new THREE.MeshBasicMaterial({
-  color: 0xc8c8c8,
+  color: 0xe8e8e8,
   side: THREE.FrontSide,
   toneMapped: false,
 });

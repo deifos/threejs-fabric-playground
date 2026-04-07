@@ -144,7 +144,7 @@ const screenBezelMat = new THREE.MeshBasicMaterial({ color: 0x06080c });
 
 // Dimmed slightly so the screen image doesn't blow out next to light bodies
 const screenMat = new THREE.MeshBasicMaterial({
-  color: 0xc8c8c8,
+  color: 0xe8e8e8,
   toneMapped: false,
 });
 
