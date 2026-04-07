@@ -212,8 +212,8 @@ const BEZEL_B = 0.10;     // chin (slightly thicker)
 
 const SCR_W = W - BEZEL_S * 2;
 const SCR_H = LID_H - BEZEL_T - BEZEL_B;
-const BASE_THICKNESS = 0.13; // total height (very slim, MacBook Air-thin)
-const BASE_BEVEL = 0.012;
+const BASE_THICKNESS = 0.10; // total height (slimmer, like the reference)
+const BASE_BEVEL = 0.010;
 const BASE_DEPTH = BASE_THICKNESS - 2 * BASE_BEVEL; // extruded body depth
 const BASE_R = 0.12;       // top-down corner radius
 
