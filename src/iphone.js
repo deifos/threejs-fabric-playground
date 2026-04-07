@@ -1,0 +1,458 @@
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+// ── Renderer ─────────────────────────────────────────────────────────
+const canvas = document.getElementById("three-canvas");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+// ── Scene ────────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  28,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  100
+);
+camera.position.set(0, 0, 9);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.target.set(0, 0, 0);
+controls.minDistance = 4;
+controls.maxDistance = 18;
+
+// ── Lighting ─────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+
+const key = new THREE.DirectionalLight(0xffffff, 1.6);
+key.position.set(4, 8, 6);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.near = 1;
+key.shadow.camera.far = 25;
+key.shadow.camera.left = -5;
+key.shadow.camera.right = 5;
+key.shadow.camera.top = 5;
+key.shadow.camera.bottom = -5;
+key.shadow.bias = -0.0004;
+scene.add(key);
+
+const fill = new THREE.DirectionalLight(0xb8d4ec, 0.5);
+fill.position.set(-5, 3, -2);
+scene.add(fill);
+
+const rim = new THREE.DirectionalLight(0xffffff, 0.7);
+rim.position.set(0, 2, -8);
+scene.add(rim);
+
+// ── Environment for reflections ──────────────────────────────────────
+const pmrem = new THREE.PMREMGenerator(renderer);
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0x2a3040);
+[
+  { color: 0xc0d4e8, pos: [0, 8, -4], rot: [0.4, 0, 0] },
+  { color: 0x90a8c0, pos: [6, 4, 0], rot: [0, -1.3, 0] },
+  { color: 0x90a8c0, pos: [-6, 4, 0], rot: [0, 1.3, 0] },
+  { color: 0xa0b4ce, pos: [0, -2, 4], rot: [-0.6, 0, 0] },
+].forEach(({ color, pos, rot }) => {
+  const m = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshBasicMaterial({ color })
+  );
+  m.position.set(...pos);
+  m.rotation.set(...rot);
+  envScene.add(m);
+});
+scene.environment = pmrem.fromScene(envScene, 0.05).texture;
+pmrem.dispose();
+
+// ── Ground (catches shadows only) ────────────────────────────────────
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(40, 40),
+  new THREE.ShadowMaterial({ opacity: 0.18 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -2.5;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ── Helpers ──────────────────────────────────────────────────────────
+function rrShape(w, h, r) {
+  const s = new THREE.Shape();
+  const x = -w / 2, y = -h / 2;
+  s.moveTo(x + r, y);
+  s.lineTo(x + w - r, y);
+  s.quadraticCurveTo(x + w, y, x + w, y + r);
+  s.lineTo(x + w, y + h - r);
+  s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  s.lineTo(x + r, y + h);
+  s.quadraticCurveTo(x, y + h, x, y + h - r);
+  s.lineTo(x, y + r);
+  s.quadraticCurveTo(x, y, x + r, y);
+  return s;
+}
+
+// ── iPhone dimensions ────────────────────────────────────────────────
+const PHONE_W = 1.55;
+const PHONE_H = 3.20;
+const PHONE_D = 0.17;
+const PHONE_R = 0.30; // corner radius (silhouette)
+
+// Moderate bevel for a rounded silhouette without making the front face tiny
+const BEVEL_T = 0.04;
+const BEVEL_S = 0.03;
+const EXTRUDE_D = PHONE_D - 2 * BEVEL_T;
+
+const FRONT_W = PHONE_W - 2 * BEVEL_S;
+const FRONT_H = PHONE_H - 2 * BEVEL_S;
+const FRONT_R = PHONE_R - BEVEL_S;
+
+// Bezel/screen are sized to MATCH the silhouette (not the smaller front cap),
+// so they visually cover the entire front of the phone like a real iPhone.
+const BEZEL_W = PHONE_W - 0.02;
+const BEZEL_H = PHONE_H - 0.02;
+const BEZEL_R = PHONE_R - 0.01;
+const BEZEL_M = 0.025; // black border between the bezel edge and the screen
+const SCR_W = BEZEL_W - BEZEL_M * 2;
+const SCR_H = BEZEL_H - BEZEL_M * 2;
+
+// ── Materials ────────────────────────────────────────────────────────
+// Body color (sky blue) - matches the reference iPhone color
+const phoneColors = {
+  blue:  { body: 0xb8d4e6, rail: 0xc6dceb },
+  black: { body: 0x2a2d33, rail: 0x42464d },
+  white: { body: 0xeef0f2, rail: 0xdadcde },
+  pink:  { body: 0xf3d6d4, rail: 0xefcdcb },
+};
+
+const bodyMat = new THREE.MeshStandardMaterial({
+  color: 0xb8d4e6,
+  metalness: 0.35,
+  roughness: 0.45,
+});
+
+const railMat = new THREE.MeshStandardMaterial({
+  color: 0xc6dceb,
+  metalness: 0.85,
+  roughness: 0.18,
+});
+
+const screenBezelMat = new THREE.MeshBasicMaterial({ color: 0x06080c });
+
+const screenMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  toneMapped: false,
+});
+
+const lensGlassMat = new THREE.MeshStandardMaterial({
+  color: 0x14171c,
+  metalness: 0.3,
+  roughness: 0.1,
+});
+
+const lensRingMat = new THREE.MeshStandardMaterial({
+  color: 0x6c7480,
+  metalness: 0.95,
+  roughness: 0.15,
+});
+
+const flashMat = new THREE.MeshStandardMaterial({
+  color: 0xc8d4e2,
+  metalness: 0.3,
+  roughness: 0.4,
+});
+
+const cameraPlateauMat = new THREE.MeshStandardMaterial({
+  color: 0xc8dceb, // slightly lighter than the body
+  metalness: 0.45,
+  roughness: 0.35,
+});
+
+const buttonMat = new THREE.MeshStandardMaterial({
+  color: 0xc6dceb,
+  metalness: 0.85,
+  roughness: 0.18,
+});
+
+const portMat = new THREE.MeshBasicMaterial({ color: 0x06080c });
+
+// ── Phone group ──────────────────────────────────────────────────────
+const phone = new THREE.Group();
+scene.add(phone);
+
+// ── Body (rounded rectangle profile, extruded with big bevel) ───────
+// The big bevel rounds the entire perimeter of the phone, wrapping the
+// edges from front to back like a real iPhone.
+const bodyShape = rrShape(PHONE_W, PHONE_H, PHONE_R);
+const bodyGeo = new THREE.ExtrudeGeometry(bodyShape, {
+  depth: EXTRUDE_D,
+  bevelEnabled: true,
+  bevelThickness: BEVEL_T,
+  bevelSize: BEVEL_S,
+  bevelSegments: 12,
+  curveSegments: 40,
+});
+// ExtrudeGeometry vertices run z = -BEVEL_T to z = EXTRUDE_D + BEVEL_T.
+// Translate so the center is at z=0 (front at +PHONE_D/2, back at -PHONE_D/2).
+bodyGeo.translate(0, 0, -EXTRUDE_D / 2);
+const body = new THREE.Mesh(bodyGeo, bodyMat);
+body.castShadow = true;
+body.receiveShadow = true;
+phone.add(body);
+
+// ── Front bezel (covers the silhouette, not just the small front cap) ──
+const frontBezelGeo = new THREE.ShapeGeometry(rrShape(BEZEL_W, BEZEL_H, BEZEL_R));
+const frontBezel = new THREE.Mesh(frontBezelGeo, screenBezelMat);
+const FRONT_Z = PHONE_D / 2 + 0.002;
+frontBezel.position.z = FRONT_Z;
+phone.add(frontBezel);
+
+// ── Screen (image) — rounded shape with corrected UVs so the texture
+// is clipped to the screen shape instead of overflowing the bezel.
+const SCR_R = BEZEL_R - BEZEL_M;
+const scrShape = rrShape(SCR_W, SCR_H, SCR_R);
+const scrGeo = new THREE.ShapeGeometry(scrShape, 24);
+{
+  // ShapeGeometry uses raw vertex XY for UVs by default. Remap to 0..1.
+  const pos = scrGeo.attributes.position;
+  const uv = scrGeo.attributes.uv;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    uv.setXY(i, (x + SCR_W / 2) / SCR_W, (y + SCR_H / 2) / SCR_H);
+  }
+  uv.needsUpdate = true;
+}
+const screen = new THREE.Mesh(scrGeo, screenMat);
+screen.position.z = FRONT_Z + 0.001;
+phone.add(screen);
+
+// Try to load the wallpaper
+new THREE.TextureLoader().load(
+  "/iphone-screen.png",
+  (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.minFilter = THREE.LinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    screenMat.map = tex;
+    screenMat.needsUpdate = true;
+  },
+  undefined,
+  (err) => console.error("[iphone] failed to load /iphone-screen.png", err)
+);
+
+// ── Dynamic Island (small dark pill near the top of the screen) ─────
+const islandW = 0.42;
+const islandH = 0.10;
+const islandGeo = new THREE.ShapeGeometry(rrShape(islandW, islandH, islandH / 2));
+const island = new THREE.Mesh(
+  islandGeo,
+  new THREE.MeshBasicMaterial({ color: 0x05070b })
+);
+island.position.set(0, BEZEL_H / 2 - 0.14, FRONT_Z + 0.002);
+phone.add(island);
+
+// The flat back face cap is at -PHONE_D/2 after the bevel.
+const BACK_Z = -PHONE_D / 2 - 0.001;
+
+// ── Apple logo (center back) ────────────────────────────────────────
+const logoCanvas = document.createElement("canvas");
+logoCanvas.width = 256;
+logoCanvas.height = 256;
+const lctx = logoCanvas.getContext("2d");
+lctx.clearRect(0, 0, 256, 256);
+lctx.font = "180px -apple-system, system-ui";
+lctx.fillStyle = "#ffffff";
+lctx.textAlign = "center";
+lctx.textBaseline = "middle";
+lctx.fillText("\uF8FF", 128, 138);
+const logoTex = new THREE.CanvasTexture(logoCanvas);
+logoTex.colorSpace = THREE.SRGBColorSpace;
+const appleLogo = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.42, 0.42),
+  new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, depthWrite: false })
+);
+appleLogo.position.set(0, 0, BACK_Z - 0.001);
+appleLogo.rotation.y = Math.PI;
+phone.add(appleLogo);
+
+// ── Camera plateau (back, top-left) — wide pill shape ──────────────
+const PLATEAU_W = 0.85;
+const PLATEAU_H = 0.42;
+const PLATEAU_D = 0.05;
+const PLATEAU_R = 0.21; // = PLATEAU_H / 2 (full pill)
+
+const plateauShape = rrShape(PLATEAU_W, PLATEAU_H, PLATEAU_R);
+const plateauGeo = new THREE.ExtrudeGeometry(plateauShape, {
+  depth: PLATEAU_D - 0.012,
+  bevelEnabled: true,
+  bevelThickness: 0.006,
+  bevelSize: 0.006,
+  bevelSegments: 6,
+  curveSegments: 32,
+});
+// Translate so the plateau geometry extends from z=-PLATEAU_D to z=0
+// (outer face away from the phone, inner face touching the back).
+plateauGeo.translate(0, 0, -PLATEAU_D + 0.006);
+
+const PLATEAU_X = -FRONT_W / 2 + PLATEAU_W / 2 + 0.10;
+const PLATEAU_Y = FRONT_H / 2 - PLATEAU_H / 2 - 0.12;
+// Outer face of the plateau (the face the lenses sit on)
+const PLATEAU_BACK_Z = BACK_Z - PLATEAU_D - 0.002;
+
+const plateau = new THREE.Mesh(plateauGeo, cameraPlateauMat);
+plateau.position.set(PLATEAU_X, PLATEAU_Y, BACK_Z);
+plateau.castShadow = true;
+phone.add(plateau);
+
+// Lens center is offset to the LEFT inside the pill, with the flash to the right.
+const LENS_X = PLATEAU_X - 0.21;
+const FLASH_X = PLATEAU_X + 0.21;
+
+// Big lens — outer metallic ring + glass + inner highlight
+const bigLensRingGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.04, 36);
+const bigLensRing = new THREE.Mesh(bigLensRingGeo, lensRingMat);
+bigLensRing.rotation.x = Math.PI / 2;
+bigLensRing.position.set(LENS_X, PLATEAU_Y, PLATEAU_BACK_Z - 0.018);
+phone.add(bigLensRing);
+
+const bigLensGlassGeo = new THREE.CircleGeometry(0.10, 32);
+const bigLensGlass = new THREE.Mesh(bigLensGlassGeo, lensGlassMat);
+bigLensGlass.rotation.y = Math.PI;
+bigLensGlass.position.set(LENS_X, PLATEAU_Y, PLATEAU_BACK_Z - 0.041);
+phone.add(bigLensGlass);
+
+// Inner lens highlight (smaller circle inside)
+const innerLensGeo = new THREE.CircleGeometry(0.05, 24);
+const innerLens = new THREE.Mesh(
+  innerLensGeo,
+  new THREE.MeshBasicMaterial({ color: 0x202730 })
+);
+innerLens.rotation.y = Math.PI;
+innerLens.position.set(LENS_X, PLATEAU_Y, PLATEAU_BACK_Z - 0.043);
+phone.add(innerLens);
+
+// Flash (small dot to the right of the lens)
+const flashGeo = new THREE.CircleGeometry(0.038, 20);
+const flash = new THREE.Mesh(flashGeo, flashMat);
+flash.rotation.y = Math.PI;
+flash.position.set(FLASH_X, PLATEAU_Y + 0.05, PLATEAU_BACK_Z - 0.001);
+phone.add(flash);
+
+// Microphone hole (small dot below flash)
+const micGeo = new THREE.CircleGeometry(0.014, 16);
+const mic = new THREE.Mesh(micGeo, new THREE.MeshBasicMaterial({ color: 0x06080c }));
+mic.rotation.y = Math.PI;
+mic.position.set(FLASH_X, PLATEAU_Y - 0.06, PLATEAU_BACK_Z - 0.001);
+phone.add(mic);
+
+// ── Side buttons (vertical pills running along Y) ───────────────────
+// Each button is a thin BoxGeometry: extruded out (X), tall (Y), thin (Z).
+// They poke out clearly from the side wall.
+function makeButton(length, thickness = 0.045) {
+  // X = how far it sticks out, Y = vertical length, Z = front-back thickness
+  const geo = new THREE.BoxGeometry(0.04, length, thickness);
+  const m = new THREE.Mesh(geo, buttonMat);
+  m.castShadow = true;
+  return m;
+}
+
+// LEFT side: action button (top), volume up, volume down
+// Center the button on the silhouette so half is visible outside
+const leftX = -PHONE_W / 2;
+
+// Action / mute button (small)
+const actionBtn = makeButton(0.12);
+actionBtn.position.set(leftX, PHONE_H / 2 - 0.62, 0);
+phone.add(actionBtn);
+
+// Volume up
+const volUp = makeButton(0.22);
+volUp.position.set(leftX, PHONE_H / 2 - 0.95, 0);
+phone.add(volUp);
+
+// Volume down
+const volDown = makeButton(0.22);
+volDown.position.set(leftX, PHONE_H / 2 - 1.25, 0);
+phone.add(volDown);
+
+// RIGHT side: power button
+const rightX = PHONE_W / 2;
+const powerBtn = makeButton(0.32);
+powerBtn.position.set(rightX, PHONE_H / 2 - 0.85, 0);
+phone.add(powerBtn);
+
+// ── USB-C port at the bottom ─────────────────────────────────────────
+const portGeo = new THREE.BoxGeometry(0.18, 0.028, 0.04);
+const port = new THREE.Mesh(portGeo, portMat);
+port.position.set(0, -PHONE_H / 2 - 0.001, 0);
+phone.add(port);
+
+// Speaker grilles (left and right of the USB-C port)
+const speakerHoles = 6;
+for (let i = 0; i < speakerHoles; i++) {
+  const holeGeo = new THREE.CircleGeometry(0.016, 16);
+  const hole = new THREE.Mesh(holeGeo, portMat);
+  hole.rotation.x = Math.PI / 2;
+  const sideSign = i < speakerHoles / 2 ? -1 : 1;
+  const indexInGroup = i % (speakerHoles / 2);
+  hole.position.set(
+    sideSign * (0.22 + indexInGroup * 0.05),
+    -PHONE_H / 2 - 0.001,
+    0
+  );
+  phone.add(hole);
+}
+
+// ── Color picker ─────────────────────────────────────────────────────
+function setPhoneColor(name) {
+  const palette = phoneColors[name];
+  if (!palette) return;
+  bodyMat.color.setHex(palette.body);
+  railMat.color.setHex(palette.rail);
+  cameraPlateauMat.color.setHex(palette.body);
+  buttonMat.color.setHex(palette.rail);
+}
+
+document.querySelectorAll(".swatch").forEach((swatch) => {
+  swatch.addEventListener("click", () => {
+    const name = swatch.dataset.color;
+    setPhoneColor(name);
+    document.querySelectorAll(".swatch").forEach((s) => s.classList.remove("active"));
+    swatch.classList.add("active");
+  });
+});
+
+const defaultSwatch = document.querySelector('.swatch[data-color="blue"]');
+if (defaultSwatch) defaultSwatch.classList.add("active");
+
+// ── API ──────────────────────────────────────────────────────────────
+window.mockup = {
+  phone,
+  setColor: setPhoneColor,
+};
+
+// ── Loop ─────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ── Resize ───────────────────────────────────────────────────────────
+window.addEventListener("resize", () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});

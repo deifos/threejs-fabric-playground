@@ -128,11 +128,51 @@
         transform: scale(1.15);
         box-shadow: 0 0 0 3px rgba(168, 193, 220, 0.3);
       }
+
+      /* Top-left toggle to switch between mockups */
+      .mockup-toggle {
+        position: fixed;
+        top: 24px;
+        left: 24px;
+        display: flex;
+        gap: 4px;
+        padding: 4px;
+        background: rgba(19, 23, 28, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        backdrop-filter: blur(12px);
+        z-index: 10;
+      }
+
+      .mockup-toggle a {
+        padding: 8px 18px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        color: var(--mist);
+        text-decoration: none;
+        border-radius: 999px;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+
+      .mockup-toggle a:hover {
+        color: #ffffff;
+      }
+
+      .mockup-toggle a.active {
+        background: var(--accent);
+        color: #0c0e14;
+      }
     </style>
   </head>
   <body>
     <canvas id="three-canvas"></canvas>
     <canvas id="fabric-canvas" width="1600" height="1000"></canvas>
+
+    <nav class="mockup-toggle">
+      <a href="/index.html" class="active">Laptop</a>
+      <a href="/iphone.html">iPhone</a>
+    </nav>
 
     <div class="lid-control">
       <span class="label">Open</span>
