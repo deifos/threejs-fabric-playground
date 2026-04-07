@@ -554,7 +554,7 @@ const layout = [
   ]},
   { h: 1.0, keys: [
     k(1,"fn"), k(1,"⌃"), k(1,"⌥"), k(1.25,"⌘"), k(5,""), k(1.25,"⌘"), k(1,"⌥"),
-    k(0.5,"←"), k(0.5,"↑"), k(0.5,"→")
+    k(1,"←"), { w: 1, l: "↑↓", stacked: true }, k(1,"→")
   ]},
 ];
 
@@ -617,9 +617,54 @@ layout.forEach((row, rowIdx) => {
   const isFunctionRow = rowIdx === 0;
 
   let cursorX = -innerKbW / 2;
-  row.keys.forEach(({ w: widthUnits, l: label }) => {
+  row.keys.forEach((entry) => {
+    const widthUnits = entry.w;
+    const label = entry.l;
+    const stacked = entry.stacked === true;
     const kw = widthUnits * unitW;
     const kh = rowH;
+
+    if (stacked) {
+      // Two half-height keys (up over down) in the same column slot
+      const halfH = (kh - 0.004) / 2;
+      const radius = Math.min(0.012, halfH * 0.32);
+      const upChar = label[0] || "↑";
+      const downChar = label[1] || "↓";
+      const cx = cursorX + kw / 2;
+
+      [
+        { ch: upChar, zOff: -halfH / 2 - 0.002 },
+        { ch: downChar, zOff: halfH / 2 + 0.002 },
+      ].forEach(({ ch, zOff }) => {
+        const keyGeo = new RoundedBoxGeometry(kw, keyHeight, halfH, 2, radius);
+        const keyMesh = new THREE.Mesh(keyGeo, keyCapMat);
+        const cz = cursorZ + kh / 2 + zOff;
+        keyMesh.position.set(cx, keyHeight / 2 + 0.003, cz);
+        keyMesh.castShadow = true;
+        keyboardGroup.add(keyMesh);
+
+        // Label
+        const fontPx = 56;
+        const labelTex = getLabelTexture(ch, fontPx);
+        const square = Math.min(kw * 0.78, halfH * 0.85);
+        const labelGeo = new THREE.PlaneGeometry(square, square);
+        const labelMat = new THREE.MeshBasicMaterial({
+          map: labelTex,
+          transparent: true,
+          depthWrite: false,
+        });
+        const labelMesh = new THREE.Mesh(labelGeo, labelMat);
+        labelMesh.rotation.x = -Math.PI / 2;
+        labelMesh.position.set(cx, keyHeight + 0.005, cz);
+        labelMesh.userData = { label: ch, fontPx };
+        keyboardGroup.add(labelMesh);
+        labelMeshes.push(labelMesh);
+      });
+
+      cursorX += kw + colGap;
+      return;
+    }
+
     const radius = Math.min(0.015, kh * 0.28);
     const segments = 2;
 
@@ -832,12 +877,12 @@ function setLaptopColor(name) {
   // Body / lid
   aluminum.color.setHex(palette.body);
   aluminumDark.color.setHex(palette.back);
-  // Top deck (anodized to match the body)
-  plateMat.color.setHex(palette.body);
-  trackpadMat.color.setHex(palette.body);
-  // Keys: subtly lighter than the body so they stand out a touch
-  const keyHex = mixHex(palette.body, 0xffffff, 0.18);
-  keyCapMat.color.setHex(keyHex);
+  // Plate (the keyboard well) — slightly darker than the body for a recessed look
+  plateMat.color.setHex(mixHex(palette.body, 0x000000, 0.18));
+  // Trackpad — also slightly darker than the body so it's visible
+  trackpadMat.color.setHex(mixHex(palette.body, 0x000000, 0.12));
+  // Keys: lighter than the body so they pop against the dark plate
+  keyCapMat.color.setHex(mixHex(palette.body, 0xffffff, 0.20));
   // Labels: contrast-aware
   labelTextColor = labelColorFor(palette.body);
   refreshLabelTextures();
