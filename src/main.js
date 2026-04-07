@@ -5,7 +5,7 @@ import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { Canvas as FabricCanvas, Rect, Textbox, Gradient } from "fabric";
+import { Canvas as FabricCanvas, Rect } from "fabric";
 
 // ── Renderer ─────────────────────────────────────────────────────────
 const canvas = document.getElementById("three-canvas");
@@ -185,7 +185,6 @@ function rrShape(w, h, r) {
 
 // ── Dimensions (in scene units) ──────────────────────────────────────
 const W = 3.58;           // laptop width
-const ASPECT = 16 / 10;
 const BASE_W = W;
 const BASE_D = 2.32;       // depth front-to-back
 // Hinge sits 0.04 forward of the back edge, so the lid panel must equal

@@ -1,5 +1,9 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 // ── Renderer ─────────────────────────────────────────────────────────
 const canvas = document.getElementById("three-canvas");
@@ -8,7 +12,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMappingExposure = 0.85;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -31,9 +35,11 @@ controls.minDistance = 4;
 controls.maxDistance = 18;
 
 // ── Lighting ─────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+// Most of the realism comes from the env map; the directional lights are
+// kept low to avoid stagy highlights.
+scene.add(new THREE.AmbientLight(0xffffff, 0.15));
 
-const key = new THREE.DirectionalLight(0xffffff, 1.6);
+const key = new THREE.DirectionalLight(0xffffff, 1.4);
 key.position.set(4, 8, 6);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
@@ -44,35 +50,18 @@ key.shadow.camera.right = 5;
 key.shadow.camera.top = 5;
 key.shadow.camera.bottom = -5;
 key.shadow.bias = -0.0004;
+key.shadow.radius = 6;
 scene.add(key);
 
-const fill = new THREE.DirectionalLight(0xb8d4ec, 0.5);
-fill.position.set(-5, 3, -2);
-scene.add(fill);
-
-const rim = new THREE.DirectionalLight(0xffffff, 0.7);
-rim.position.set(0, 2, -8);
+const rim = new THREE.DirectionalLight(0xc7d6ee, 0.4);
+rim.position.set(-3, 4, -7);
 scene.add(rim);
 
-// ── Environment for reflections ──────────────────────────────────────
+// ── Environment map (RoomEnvironment) ───────────────────────────────
 const pmrem = new THREE.PMREMGenerator(renderer);
-const envScene = new THREE.Scene();
-envScene.background = new THREE.Color(0x2a3040);
-[
-  { color: 0xc0d4e8, pos: [0, 8, -4], rot: [0.4, 0, 0] },
-  { color: 0x90a8c0, pos: [6, 4, 0], rot: [0, -1.3, 0] },
-  { color: 0x90a8c0, pos: [-6, 4, 0], rot: [0, 1.3, 0] },
-  { color: 0xa0b4ce, pos: [0, -2, 4], rot: [-0.6, 0, 0] },
-].forEach(({ color, pos, rot }) => {
-  const m = new THREE.Mesh(
-    new THREE.PlaneGeometry(20, 20),
-    new THREE.MeshBasicMaterial({ color })
-  );
-  m.position.set(...pos);
-  m.rotation.set(...rot);
-  envScene.add(m);
-});
-scene.environment = pmrem.fromScene(envScene, 0.05).texture;
+pmrem.compileEquirectangularShader();
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.45;
 pmrem.dispose();
 
 // ── Ground (catches shadows only) ────────────────────────────────────
@@ -126,7 +115,6 @@ const SCR_W = BEZEL_W - BEZEL_M * 2;
 const SCR_H = BEZEL_H - BEZEL_M * 2;
 
 // ── Materials ────────────────────────────────────────────────────────
-// Body color (sky blue) - matches the reference iPhone color
 const phoneColors = {
   blue:  { body: 0xb8d4e6, rail: 0xc6dceb },
   black: { body: 0x2a2d33, rail: 0x42464d },
@@ -134,35 +122,46 @@ const phoneColors = {
   pink:  { body: 0xf3d6d4, rail: 0xefcdcb },
 };
 
-const bodyMat = new THREE.MeshStandardMaterial({
+// Anodized aluminum body — clearcoat gives the slight glossy finish.
+const bodyMat = new THREE.MeshPhysicalMaterial({
   color: 0xb8d4e6,
-  metalness: 0.35,
-  roughness: 0.45,
+  metalness: 0.55,
+  roughness: 0.42,
+  clearcoat: 0.45,
+  clearcoatRoughness: 0.18,
 });
 
-const railMat = new THREE.MeshStandardMaterial({
+// More polished side rail
+const railMat = new THREE.MeshPhysicalMaterial({
   color: 0xc6dceb,
   metalness: 0.85,
   roughness: 0.18,
+  clearcoat: 0.6,
+  clearcoatRoughness: 0.10,
 });
 
 const screenBezelMat = new THREE.MeshBasicMaterial({ color: 0x06080c });
 
+// Dimmed slightly so the screen image doesn't blow out next to light bodies
 const screenMat = new THREE.MeshBasicMaterial({
-  color: 0xffffff,
+  color: 0xc8c8c8,
   toneMapped: false,
 });
 
-const lensGlassMat = new THREE.MeshStandardMaterial({
+const lensGlassMat = new THREE.MeshPhysicalMaterial({
   color: 0x14171c,
   metalness: 0.3,
   roughness: 0.1,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.05,
 });
 
-const lensRingMat = new THREE.MeshStandardMaterial({
+const lensRingMat = new THREE.MeshPhysicalMaterial({
   color: 0x6c7480,
   metalness: 0.95,
   roughness: 0.15,
+  clearcoat: 0.5,
+  clearcoatRoughness: 0.1,
 });
 
 const flashMat = new THREE.MeshStandardMaterial({
@@ -171,16 +170,20 @@ const flashMat = new THREE.MeshStandardMaterial({
   roughness: 0.4,
 });
 
-const cameraPlateauMat = new THREE.MeshStandardMaterial({
-  color: 0xc8dceb, // slightly lighter than the body
-  metalness: 0.45,
-  roughness: 0.35,
+const cameraPlateauMat = new THREE.MeshPhysicalMaterial({
+  color: 0xc8dceb,
+  metalness: 0.55,
+  roughness: 0.4,
+  clearcoat: 0.45,
+  clearcoatRoughness: 0.18,
 });
 
-const buttonMat = new THREE.MeshStandardMaterial({
+const buttonMat = new THREE.MeshPhysicalMaterial({
   color: 0xc6dceb,
   metalness: 0.85,
   roughness: 0.18,
+  clearcoat: 0.6,
+  clearcoatRoughness: 0.1,
 });
 
 const portMat = new THREE.MeshBasicMaterial({ color: 0x06080c });
@@ -458,11 +461,24 @@ window.mockup = {
   setColor: setPhoneColor,
 };
 
+// ── Post-processing (MSAA) ──────────────────────────────────────────
+const composerTarget = new THREE.WebGLRenderTarget(
+  window.innerWidth, window.innerHeight,
+  {
+    type: THREE.HalfFloatType,
+    samples: 4,
+  }
+);
+const composer = new EffectComposer(renderer, composerTarget);
+composer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new OutputPass());
+
 // ── Loop ─────────────────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
-  renderer.render(scene, camera);
+  composer.render();
 }
 animate();
 
@@ -471,4 +487,5 @@ window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
