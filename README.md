@@ -9,6 +9,10 @@ The goal is to provide a foundation you can drop your own screen content
 (an image, a Fabric canvas, or a `<video>`) into and immediately render a
 clean, interactive 3D mockup of it.
 
+> Built for use with [Screenslick](https://screenslick.com) — a browser-based
+> screen recorder that lets you record, edit, and export polished videos
+> without leaving your browser.
+
 ## Features
 
 - **Procedural geometry** — every part of the laptop and phone is built from
